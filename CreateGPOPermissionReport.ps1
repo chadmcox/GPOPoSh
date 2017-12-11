@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 0.1
+.VERSION 0.3
 
 .GUID bafabea1-77fa-4507-aa57-1acc77fb9b9c
 
@@ -49,13 +49,28 @@ from the use or distribution of the Sample Code..
 #Requires -Module ActiveDirectory
 #Requires -Module GroupPolicy
 #Requires -version 3.0
+#Requires -RunAsAdministrator
 <# 
 
 .DESCRIPTION 
  This script gets all gpo's in a forest and reports on the permissions. 
 https://technet.microsoft.com/en-us/library/ee461018.aspx
 #> 
-Param($defaultlog = "$env:userprofile\Documents\report_GroupPolicyPermissions.csv")
+Param($reportpath = "$env:userprofile\Documents")
+
+#Creating a Report Path
+$reportpath = "$reportpath\ADCleanUpReports"
+If (!($(Try { Test-Path $reportpath } Catch { $true }))){
+    new-Item $reportpath -ItemType "directory"  -force
+}
+$reportpath = "$reportpath\GroupPolicies"
+If (!($(Try { Test-Path $reportpath } Catch { $true }))){
+    new-Item $reportpath -ItemType "directory"  -force
+}
+
+#report Name
+$default_log = "$reportpath\report_GroupPolicyPermissions.csv"
+
 $results = @()
 foreach($domain in (get-adforest).domains){
   (Get-GPO -all -domain $domain).DisplayName | foreach{$gpo = $_
@@ -65,9 +80,9 @@ foreach($domain in (get-adforest).domains){
     @{name='Trustee';expression={$_.trustee.name}}, `
     Denied,Inherited,Permission
     }
-  }
+}
 
-$results | export-csv $defaultlog -NoTypeInformation
+$results | export-csv $default_log -NoTypeInformation
 cls
 write-host -foregroundcolor yellow "To view results run: import-csv $defaultlog | out-gridview "
 write-host "Unique GPO Count $(($results | select GPO -unique | measure).count)"
