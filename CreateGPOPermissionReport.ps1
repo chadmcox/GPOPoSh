@@ -55,6 +55,9 @@ from the use or distribution of the Sample Code..
 .DESCRIPTION 
  This script gets all gpo's in a forest and reports on the permissions. 
 https://technet.microsoft.com/en-us/library/ee461018.aspx
+
+Two reports one shows all the gpo's and the acl being applied.
+Other is report with gpo and any instance of a unresolved sid.
 #> 
 Param($reportpath = "$env:userprofile\Documents")
 
@@ -70,21 +73,35 @@ If (!($(Try { Test-Path $reportpath } Catch { $true }))){
 
 #report Name
 $default_log = "$reportpath\report_GroupPolicyPermissions.csv"
-
+$default_log2 = "$reportpath\report_GroupPolicywithUnresolvedSidAcl.csv"
+$unresolvedsid_results = @()
 $results = @()
 foreach($domain in (get-adforest).domains){
-  (Get-GPO -all -domain $domain).DisplayName | foreach{$gpo = $_
-    $results += Get-GPPermissions -Name $_ -All -DomainName $domain | select `
-    @{name='Domain';expression={$domain}},`
-    @{name='GPO';expression={$gpo}},`
-    @{name='Trustee';expression={$_.trustee.name}}, `
-    Denied,Inherited,Permission
+    (Get-GPO -all -domain $domain).DisplayName | foreach{$gpo = $_
+        Get-GPPermissions -Name $_ -All -DomainName $domain | foreach{
+        if($_.trustee.sidtype -eq "Unknown"){
+        $unresolvedsid_results += $_ | select `
+            @{name='Domain';expression={$domain}},`
+            @{name='GPO';expression={$gpo}},`
+            @{name='TrusteeSid';expression={$_.trustee.Sid}}
+        }
+        $results += $_ | select `
+        @{name='Domain';expression={$domain}},`
+        @{name='GPO';expression={$gpo}},`
+        @{name='Trustee';expression={$_.trustee.name}}, `
+        @{name='TrusteeDomain';expression={$_.trustee.Domain}}, `
+        @{name='TrusteeSid';expression={$_.trustee.Sid}}, `
+        Denied,Inherited,Permission
+        }
     }
 }
 
+$unresolvedsid_results | export-csv $default_log2 -NoTypeInformation
 $results | export-csv $default_log -NoTypeInformation
 cls
-write-host -foregroundcolor yellow "To view results run: import-csv $defaultlog | out-gridview "
+write-host -foregroundcolor yellow "To view results run: import-csv $default_log2 | out-gridview "
+write-host "GPO has ACL with Sid that does not resolve. Consider removing Sid acl from GPO. Found: $(($unresolvedsid_results | select GPO -unique | measure).count)"
+write-host -foregroundcolor yellow "To view results run: import-csv $default_log | out-gridview "
 write-host "Unique GPO Count $(($results | select GPO -unique | measure).count)"
-write-host "Breakdown of Trustee"
+write-host "Breakdown of Trustee, review and consider replacing users with groups that manage GPO's"
 $results | group trustee | select name, count | out-host
