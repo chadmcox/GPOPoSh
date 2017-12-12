@@ -48,7 +48,8 @@ from the use or distribution of the Sample Code..
 
 #Requires -Module ActiveDirectory
 #Requires -Module GroupPolicy
-#Requires -Version 4
+#Requires -version 3.0
+#Requires -RunAsAdministrator
 
 <# 
 
@@ -58,6 +59,17 @@ from the use or distribution of the Sample Code..
 #> 
 Param($reportpath = "$env:userprofile\Documents")
 
+#Creating a Report Path
+$reportpath = "$reportpath\ADCleanUpReports"
+If (!($(Try { Test-Path $reportpath } Catch { $true }))){
+    new-Item $reportpath -ItemType "directory"  -force
+}
+$reportpath = "$reportpath\GroupPolicies"
+If (!($(Try { Test-Path $reportpath } Catch { $true }))){
+    new-Item $reportpath -ItemType "directory"  -force
+}
+
+
 function IsNotLinked($xmldata){ 
     If ($xmldata.GPO.LinksTo -eq $null) { 
         Return $true 
@@ -66,7 +78,7 @@ function IsNotLinked($xmldata){
 } 
 
 $unlinkedGPOs = @()
-$default_log = "$reportpath\report_unlinked_gpos.csv"
+$default_log = "$reportpath\report_UnlinkedGPOs.csv"
 If ($(Try { Test-Path $default_log} Catch { $false })){Remove-Item $default_log -force}
 $hash_domain = @{name='Domain';expression={$domain}}
 $i = 0
